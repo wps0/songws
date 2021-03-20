@@ -11,6 +11,19 @@ import (
 
 const CLIENT_BUFFER_SIZE = 4
 
+type StatusTrack struct {
+	Artist    string `json:"artist"`
+	Song      string `json:"song"`
+	Streaming bool   `json:"streaming"`
+}
+
+type StatusUpdate struct {
+	// 0 - status update
+	// 1 - new song
+	Status int           `json:"msg_type"`
+	Data   []StatusTrack `json:"data"`
+}
+
 type Server struct {
 	clients     map[*Client]bool
 	max_clients int
@@ -92,7 +105,7 @@ func ws_handler(srv *Server, rw http.ResponseWriter, r *http.Request) {
 	log.Printf("Connection attempt from %s to %s (User-Agent: %s)\n", r.RemoteAddr, r.URL, r.UserAgent())
 	client := create_client(conn, srv)
 	go client_writer(client)
-	go client_reader(client)
+	// go client_reader(client)
 }
 
 func init_http(srv *Server, ip string, port int) {

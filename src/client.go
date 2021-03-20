@@ -23,10 +23,16 @@ func create_client(conn *websocket.Conn, srv *Server) *Client {
 }
 
 func client_writer(client *Client) {
+	err := client.ws_con.WriteMessage(websocket.TextMessage, []byte(dq.To_Json()))
+	if err != nil {
+		log.Printf("[Websocket client %s] Write error: %s", client.ws_con.RemoteAddr(), err)
+		return
+	}
+
 	for {
 		select {
 		case msg := <-client.comm:
-			err := client.ws_con.WriteMessage(websocket.TextMessage, msg)
+			err = client.ws_con.WriteMessage(websocket.TextMessage, msg)
 			if err != nil {
 				log.Printf("[Websocket client %s] Write error: %s", client.ws_con.RemoteAddr(), err)
 				return
@@ -35,18 +41,18 @@ func client_writer(client *Client) {
 	}
 }
 
-func client_reader(client *Client) {
-	defer func() {
-		client.server.unregister <- client
-		client.ws_con.Close()
-	}()
+// func client_reader(client *Client) {
+// 	defer func() {
+// 		client.server.unregister <- client
+// 		client.ws_con.Close()
+// 	}()
 
-	for {
-		_, msg, err := client.ws_con.ReadMessage()
-		if err != nil {
-			log.Printf("[Websocket client %s] Read error: %s", client.ws_con.RemoteAddr(), err)
-			return
-		}
-		client.server.broadcast <- string(msg)
-	}
-}
+// 	for {
+// 		_, msg, err := client.ws_con.ReadMessage()
+// 		if err != nil {
+// 			log.Printf("[Websocket client %s] Read error: %s", client.ws_con.RemoteAddr(), err)
+// 			return
+// 		}
+// 		client.server.broadcast <- string(msg)
+// 	}
+// }
