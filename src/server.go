@@ -102,5 +102,14 @@ func init_http(srv *Server, ip string, port int) {
 	http.HandleFunc("/ws", func(rw http.ResponseWriter, r *http.Request) {
 		ws_handler(srv, rw, r)
 	})
-	log.Fatal(http.ListenAndServe(ip+":"+strconv.Itoa(port), nil))
+
+	if len(*cert) > 0 && len(*pem) > 0 && *en_https {
+		log.Println("Enabling HTTPS server...")
+		go log.Fatal(http.ListenAndServeTLS(ip+":"+strconv.Itoa(port), *cert, *pem, nil))
+	}
+
+	if *en_http {
+		log.Println("Enabling HTTP server...")
+		go log.Fatal(http.ListenAndServe(ip+":"+strconv.Itoa(port), nil))
+	}
 }
