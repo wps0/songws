@@ -41,18 +41,18 @@ func client_writer(client *Client) {
 	}
 }
 
-// func client_reader(client *Client) {
-// 	defer func() {
-// 		client.server.unregister <- client
-// 		client.ws_con.Close()
-// 	}()
+func client_reader(client *Client) {
+	defer func() {
+		client.server.unregister <- client
+		client.ws_con.Close()
+	}()
 
-// 	for {
-// 		_, msg, err := client.ws_con.ReadMessage()
-// 		if err != nil {
-// 			log.Printf("[Websocket client %s] Read error: %s", client.ws_con.RemoteAddr(), err)
-// 			return
-// 		}
-// 		client.server.broadcast <- string(msg)
-// 	}
-// }
+	for {
+		_, _, err := client.ws_con.ReadMessage()
+		if err != nil {
+			log.Printf("[Websocket client %s] Read error: %s", client.ws_con.RemoteAddr(), err)
+			return
+		}
+		log.Printf("[Websocket client %s] Illegal write attempt. Connection will be closed", client.ws_con.RemoteAddr())
+	}
+}

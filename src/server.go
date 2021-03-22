@@ -13,8 +13,21 @@ const CLIENT_BUFFER_SIZE = 4
 
 type StatusTrack struct {
 	Artist    string `json:"artist"`
-	Song      string `json:"song"`
+	Song      string `json:"title"`
 	Streaming bool   `json:"streaming"`
+	Date      int    `json:"date"`
+}
+
+func track_to_status_track(t Track) StatusTrack {
+	now_streaming, _ := strconv.Atoi(t.Streamable)
+	date, _ := strconv.Atoi(t.Date.Uts)
+	return StatusTrack{
+		Artist:    t.Artist.Text,
+		Song:      t.Name,
+		Streaming: now_streaming > 0,
+		Date:      date,
+	}
+
 }
 
 type StatusUpdate struct {
@@ -82,30 +95,29 @@ func (srv *Server) does_accept_clients() bool {
 var upgrader = websocket.Upgrader{
 	ReadBufferSize:   CLIENT_BUFFER_SIZE,
 	WriteBufferSize:  CLIENT_BUFFER_SIZE,
-	HandshakeTimeout: 300,
+	HandshakeTimeout: 3000,
 }
 
 func ws_handler(srv *Server, rw http.ResponseWriter, r *http.Request) {
 	if !srv.does_accept_clients() {
-		log.Printf("Connection from %s refused: maximum number of clients (%d) reached\n", r.RemoteAddr, srv.max_clients)
+		log.Printf("[Websocket server] Connection from %s refused: maximum number of clients (%d) reached\n", r.RemoteAddr, srv.max_clients)
 		rw.WriteHeader(503)
 		return
 	}
-
 	conn, err := upgrader.Upgrade(rw, r, nil)
 	if err != nil {
 		addr := "unknown"
 		if conn != nil {
 			addr = conn.RemoteAddr().String()
 		}
-		log.Printf("Connection attempt from %s failed with error: %s", addr, err)
+		log.Printf("[Websocket server] Connection attempt from %s failed with error: %s", addr, err)
 		return
 	}
 
-	log.Printf("Connection attempt from %s to %s (User-Agent: %s)\n", r.RemoteAddr, r.URL, r.UserAgent())
+	log.Printf("[Websocket server] Connection from %s to %s (User-Agent: %s)\n", r.RemoteAddr, r.URL, r.UserAgent())
 	client := create_client(conn, srv)
 	go client_writer(client)
-	// go client_reader(client)
+	go client_reader(client)
 }
 
 func init_http(srv *Server, ip string, port int) {

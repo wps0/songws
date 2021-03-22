@@ -5,7 +5,6 @@ import (
 	"io/ioutil"
 	"log"
 	"net/http"
-	"strconv"
 	"sync"
 	"time"
 )
@@ -85,12 +84,7 @@ func (s *DQueue) To_Json() string {
 	}
 	s.mu.RLock()
 	for i, val := range s.data {
-		now_streaming, _ := strconv.Atoi(val.Streamable)
-		update.Data[i] = StatusTrack{
-			Artist:    val.Artist.Text,
-			Song:      val.Name,
-			Streaming: now_streaming > 0,
-		}
+		update.Data[i] = track_to_status_track(val)
 	}
 	s.mu.RUnlock()
 	js, _ := json.Marshal(update)
@@ -132,35 +126,24 @@ func fetcher(srv *Server, cfg *Configuration) {
 			Status: -1,
 		}
 		if dq.data[0].Mbid == "" {
-			log.Println("1")
 			update.Status = 1
 			update.Data = make([]StatusTrack, 3)
 			for i, val := range rt_resp.Recenttracks.Track {
 				dq.Push(val)
-				now_streaming, _ := strconv.Atoi(rt_resp.Recenttracks.Track[0].Streamable)
-				update.Data[i] = StatusTrack{
-					Artist:    val.Artist.Text,
-					Song:      val.Name,
-					Streaming: now_streaming > 0,
-				}
+				update.Data[i] = track_to_status_track(val)
 			}
 		} else {
 
 			if rt_resp.Recenttracks.Track[0].Mbid == dq.Front().Mbid && rt_resp.Recenttracks.Track[0].Streamable != dq.Front().Streamable {
 				dq.mu.Lock()
-				log.Println("2")
+				// log.Println("2")
 				dq.data[0].Streamable = rt_resp.Recenttracks.Track[0].Streamable
 				update.Status = 0
 				dq.mu.Unlock()
 			} else if rt_resp.Recenttracks.Track[0].Mbid != dq.Front().Mbid {
-				log.Println("3")
+				// log.Println("3")
 				update.Status = 1
-				now_streaming, _ := strconv.Atoi(rt_resp.Recenttracks.Track[0].Streamable)
-				update.Data = []StatusTrack{{
-					Artist:    rt_resp.Recenttracks.Track[0].Artist.Text,
-					Song:      rt_resp.Recenttracks.Track[0].Name,
-					Streaming: now_streaming > 0,
-				}}
+				update.Data = []StatusTrack{track_to_status_track(rt_resp.Recenttracks.Track[0])}
 			}
 		}
 		js, err := json.Marshal(update)
