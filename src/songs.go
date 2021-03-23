@@ -12,6 +12,9 @@ import (
 const ROOT_API_URL = "http://ws.audioscrobbler.com/2.0/"
 
 type Track struct {
+	Attr struct {
+		Nowplaying string `json:"nowplaying"`
+	} `json:"@attr"`
 	Artist struct {
 		Mbid string `json:"mbid"`
 		Text string `json:"#text"`
@@ -35,6 +38,7 @@ type Track struct {
 }
 
 type RecentTracksResponse struct {
+	Error        int `json:"error"`
 	Recenttracks struct {
 		Attr struct {
 			Page       string `json:"page"`
@@ -101,26 +105,37 @@ func fetcher(srv *Server, cfg *Configuration) {
 	for {
 		time.Sleep(time.Duration(cfg.RequestInterval) * time.Second)
 
-		log.Printf("Making last.fm api request...\n")
+		log.Printf("[Songs fetcher] Making last.fm api request...\n")
 
 		req, err := http.NewRequest("GET", ROOT_API_URL+"?method=user.getrecenttracks&user="+cfg.Username+"&api_key="+cfg.LastfmApiKey+"&format=json&limit=3", nil)
 		if err != nil {
-			log.Printf("An error occurred during creating new request. Error: %d\n", err)
+			log.Printf("[Songs fetcher] An error occurred during creating new request. Error: %d\n", err)
 			continue
 		}
 		resp, err := client.Do(req)
 		if err != nil {
-			log.Printf("Request to the API cannot be made. Error: %s\n", err)
+			log.Printf("[Songs fetcher] Request to the API cannot be made. Error: %s\n", err)
 			continue
 		}
 		body, err := ioutil.ReadAll(resp.Body)
 		if err != nil {
-			log.Printf("An error occurred when parsing response. Error: %s\n", err)
+			log.Printf("[Songs fetcher] An error occurred when parsing response. Error: %s\n", err)
 			continue
 		}
 
 		rt_resp := RecentTracksResponse{}
-		json.Unmarshal(body, &rt_resp)
+		err = json.Unmarshal(body, &rt_resp)
+
+		// log.Println(string(body))
+
+		if rt_resp.Error != 0 {
+			log.Printf("[Songs fetcher] Last.fm api error: %d\n", rt_resp.Error)
+			continue
+		}
+		if err != nil {
+			log.Printf("[Songs fetcher] JSON Parsing error: %s\n", err)
+			continue
+		}
 
 		update := StatusUpdate{
 			Status: -1,
@@ -128,20 +143,22 @@ func fetcher(srv *Server, cfg *Configuration) {
 		if dq.data[0].Mbid == "" {
 			update.Status = 1
 			update.Data = make([]StatusTrack, 3)
-			for i, val := range rt_resp.Recenttracks.Track {
-				dq.Push(val)
-				update.Data[i] = track_to_status_track(val)
+			for i := 0; i < 3; i++ {
+				track := rt_resp.Recenttracks.Track[i]
+				dq.Push(track)
+				update.Data[2-i] = track_to_status_track(track)
 			}
 		} else {
 
-			if rt_resp.Recenttracks.Track[0].Mbid == dq.Front().Mbid && rt_resp.Recenttracks.Track[0].Streamable != dq.Front().Streamable {
+			if rt_resp.Recenttracks.Track[0].Mbid == dq.Front().Mbid && rt_resp.Recenttracks.Track[0].Attr.Nowplaying != dq.Front().Attr.Nowplaying {
+				log.Println("2")
 				dq.mu.Lock()
-				// log.Println("2")
-				dq.data[0].Streamable = rt_resp.Recenttracks.Track[0].Streamable
-				update.Status = 0
+				dq.data[0].Attr.Nowplaying = rt_resp.Recenttracks.Track[0].Attr.Nowplaying
 				dq.mu.Unlock()
+				update.Status = 0
 			} else if rt_resp.Recenttracks.Track[0].Mbid != dq.Front().Mbid {
-				// log.Println("3")
+				log.Println("3")
+				dq.Push(rt_resp.Recenttracks.Track[0])
 				update.Status = 1
 				update.Data = []StatusTrack{track_to_status_track(rt_resp.Recenttracks.Track[0])}
 			}

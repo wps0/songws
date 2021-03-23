@@ -1,8 +1,6 @@
 package main
 
 import (
-	"log"
-
 	"github.com/gorilla/websocket"
 )
 
@@ -25,7 +23,7 @@ func create_client(conn *websocket.Conn, srv *Server) *Client {
 func client_writer(client *Client) {
 	err := client.ws_con.WriteMessage(websocket.TextMessage, []byte(dq.To_Json()))
 	if err != nil {
-		log.Printf("[Websocket client %s] Write error: %s", client.ws_con.RemoteAddr(), err)
+		Log.Printf("[Websocket client %s] Write error: %s", client.ws_con.RemoteAddr(), err)
 		return
 	}
 
@@ -34,7 +32,7 @@ func client_writer(client *Client) {
 		case msg := <-client.comm:
 			err = client.ws_con.WriteMessage(websocket.TextMessage, msg)
 			if err != nil {
-				log.Printf("[Websocket client %s] Write error: %s", client.ws_con.RemoteAddr(), err)
+				Log.Printf("[Websocket client %s] Write error: %s", client.ws_con.RemoteAddr(), err)
 				return
 			}
 		}
@@ -50,9 +48,9 @@ func client_reader(client *Client) {
 	for {
 		_, _, err := client.ws_con.ReadMessage()
 		if err != nil {
-			log.Printf("[Websocket client %s] Read error: %s", client.ws_con.RemoteAddr(), err)
+			Log.Printf("[Websocket client %s] Read error: %s", client.ws_con.RemoteAddr(), err)
 			return
 		}
-		log.Printf("[Websocket client %s] Illegal write attempt. Connection will be closed", client.ws_con.RemoteAddr())
+		Log.Printf("[Websocket client %s] Illegal write attempt. Connection will be closed", client.ws_con.RemoteAddr())
 	}
 }

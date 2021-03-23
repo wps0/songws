@@ -3,6 +3,7 @@ package main
 import (
 	"log"
 	"net/http"
+	"os"
 	"strconv"
 	"sync"
 
@@ -11,23 +12,13 @@ import (
 
 const CLIENT_BUFFER_SIZE = 4
 
+var Log *log.Logger
+
 type StatusTrack struct {
 	Artist    string `json:"artist"`
 	Song      string `json:"title"`
 	Streaming bool   `json:"streaming"`
 	Date      int    `json:"date"`
-}
-
-func track_to_status_track(t Track) StatusTrack {
-	now_streaming, _ := strconv.Atoi(t.Streamable)
-	date, _ := strconv.Atoi(t.Date.Uts)
-	return StatusTrack{
-		Artist:    t.Artist.Text,
-		Song:      t.Name,
-		Streaming: now_streaming > 0,
-		Date:      date,
-	}
-
 }
 
 type StatusUpdate struct {
@@ -46,6 +37,17 @@ type Server struct {
 	register   chan *Client
 	unregister chan *Client
 	mu         sync.RWMutex
+}
+
+func track_to_status_track(t Track) StatusTrack {
+	date, _ := strconv.Atoi(t.Date.Uts)
+	return StatusTrack{
+		Artist:    t.Artist.Text,
+		Song:      t.Name,
+		Streaming: len(t.Attr.Nowplaying) > 0 && t.Attr.Nowplaying[0] == 't',
+		Date:      date,
+	}
+
 }
 
 func init_server(max_clients int) *Server {
@@ -96,11 +98,12 @@ var upgrader = websocket.Upgrader{
 	ReadBufferSize:   CLIENT_BUFFER_SIZE,
 	WriteBufferSize:  CLIENT_BUFFER_SIZE,
 	HandshakeTimeout: 3000,
+	CheckOrigin:      func(r *http.Request) bool { return true }, // TODO: FOR TESTING PURPOSES
 }
 
 func ws_handler(srv *Server, rw http.ResponseWriter, r *http.Request) {
 	if !srv.does_accept_clients() {
-		log.Printf("[Websocket server] Connection from %s refused: maximum number of clients (%d) reached\n", r.RemoteAddr, srv.max_clients)
+		Log.Printf("Connection from %s refused: maximum number of clients (%d) reached\n", r.RemoteAddr, srv.max_clients)
 		rw.WriteHeader(503)
 		return
 	}
@@ -110,17 +113,35 @@ func ws_handler(srv *Server, rw http.ResponseWriter, r *http.Request) {
 		if conn != nil {
 			addr = conn.RemoteAddr().String()
 		}
-		log.Printf("[Websocket server] Connection attempt from %s failed with error: %s", addr, err)
+		Log.Printf("Connection attempt from %s failed with error: %s", addr, err)
 		return
 	}
 
-	log.Printf("[Websocket server] Connection from %s to %s (User-Agent: %s)\n", r.RemoteAddr, r.URL, r.UserAgent())
+	Log.Printf("Connection from %s to %s (User-Agent: %s)\n", r.RemoteAddr, r.URL, r.UserAgent())
 	client := create_client(conn, srv)
 	go client_writer(client)
 	go client_reader(client)
 }
 
-func init_http(srv *Server, ip string, port int) {
+func init_http(srv *Server, cfg *Configuration, ip string, port int) {
+
+	var f *os.File
+	var err error
+	if len(cfg.WSAccessLogFile) == 0 {
+		log.Print("Websocket access log file not found! Access logs will be discarded")
+	} else if _, err = os.Stat(cfg.WSAccessLogFile); os.IsNotExist(err) {
+		if f, err = os.Create(cfg.WSAccessLogFile); err != nil {
+			log.Panicf("Cannot create websocket access log file. Error: %s\n", err)
+			return
+		}
+	} else {
+		f, err = os.OpenFile(cfg.WSAccessLogFile, os.O_RDWR|os.O_CREATE|os.O_APPEND, 0600)
+		if err != nil {
+			log.Panicf("Cannot create websocket access log file. Error: %s\n", err)
+		}
+	}
+	Log = log.New(f, "[WS Server] ", log.LstdFlags|log.Lmsgprefix)
+
 	http.HandleFunc("/", func(w http.ResponseWriter, r *http.Request) {
 		http.ServeFile(w, r, "/home/piotr/Documents/golang/songws/src/home.html")
 	})
@@ -130,11 +151,9 @@ func init_http(srv *Server, ip string, port int) {
 
 	if len(*cert) > 0 && len(*pem) > 0 && *en_https {
 		log.Println("Enabling HTTPS server...")
-		go log.Fatal(http.ListenAndServeTLS(ip+":"+strconv.Itoa(port), *cert, *pem, nil))
-	}
-
-	if *en_http {
+		log.Fatal(http.ListenAndServeTLS(ip+":"+strconv.Itoa(port), *cert, *pem, nil))
+	} else {
 		log.Println("Enabling HTTP server...")
-		go log.Fatal(http.ListenAndServe(ip+":"+strconv.Itoa(port), nil))
+		log.Fatal(http.ListenAndServe(ip+":"+strconv.Itoa(port), nil))
 	}
 }
