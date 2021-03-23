@@ -5,7 +5,7 @@ import (
 	"io/ioutil"
 	"log"
 	"net/http"
-	"sync"
+	"sort"
 	"time"
 )
 
@@ -51,57 +51,13 @@ type RecentTracksResponse struct {
 	} `json:"recenttracks"`
 }
 
-type DQueue struct {
-	data []Track
-	mu   sync.RWMutex
-}
-
-func (s *DQueue) Push(val Track) {
-	s.mu.Lock()
-	defer s.mu.Unlock()
-	copy(s.data[1:], s.data[:len(s.data)])
-	s.data[0] = val
-}
-
-func (s *DQueue) Back() Track {
-	s.mu.RLock()
-	defer s.mu.RUnlock()
-	return s.data[len(s.data)-1]
-}
-
-func (s *DQueue) Front() Track {
-	s.mu.RLock()
-	defer s.mu.RUnlock()
-	return s.data[len(s.data)-1]
-}
-
-func (s *DQueue) Size() int {
-	s.mu.RLock()
-	defer s.mu.RUnlock()
-	return len(s.data)
-}
-
-func (s *DQueue) To_Json() string {
-	update := StatusUpdate{
-		Status: 1,
-		Data:   make([]StatusTrack, 3),
-	}
-	s.mu.RLock()
-	for i, val := range s.data {
-		update.Data[i] = track_to_status_track(val)
-	}
-	s.mu.RUnlock()
-	js, _ := json.Marshal(update)
-	return string(js)
-}
-
 var dq DQueue = DQueue{
-	data: make([]Track, 3),
+	data: make([]StatusTrack, 3, 3),
 }
 
 func fetcher(srv *Server, cfg *Configuration) {
 	client := &http.Client{}
-
+	playing_status_update_sent := false
 	for {
 		time.Sleep(time.Duration(cfg.RequestInterval) * time.Second)
 
@@ -126,8 +82,6 @@ func fetcher(srv *Server, cfg *Configuration) {
 		rt_resp := RecentTracksResponse{}
 		err = json.Unmarshal(body, &rt_resp)
 
-		// log.Println(string(body))
-
 		if rt_resp.Error != 0 {
 			log.Printf("[Songs fetcher] Last.fm api error: %d\n", rt_resp.Error)
 			continue
@@ -137,34 +91,67 @@ func fetcher(srv *Server, cfg *Configuration) {
 			continue
 		}
 
+		tracks := make([]StatusTrack, len(rt_resp.Recenttracks.Track))
+		for i, t := range rt_resp.Recenttracks.Track {
+			tracks[i] = track_to_status_track(t)
+		}
+
+		sort.Slice(tracks, func(i, j int) bool {
+			if tracks[i].StartTimestamp == 0 {
+				return true
+			} else if tracks[j].StartTimestamp == 0 {
+				return false
+			}
+			return tracks[i].StartTimestamp > tracks[j].StartTimestamp
+		})
+
+		for i, t := range tracks {
+			log.Printf("%d: (%d; %v) %s %s (%s)\n", i, t.StartTimestamp, t.Streaming, t.Artist, t.Song, t.Uid)
+		}
+
 		update := StatusUpdate{
 			Status: -1,
+			Data:   make([]StatusTrack, 0, 3),
 		}
-		if dq.data[0].Mbid == "" {
+		if dq.Empty() {
 			update.Status = 1
-			update.Data = make([]StatusTrack, 3)
-			for i := 0; i < 3; i++ {
-				track := rt_resp.Recenttracks.Track[i]
-				dq.Push(track)
-				update.Data[2-i] = track_to_status_track(track)
+			for i := 0; i < len(tracks); i++ {
+				if i >= 3 {
+					break
+				}
+				if tracks[i].StartTimestamp == 0 {
+					tracks[i].StartTimestamp = int(time.Now().Unix())
+				}
+				update.Data = append(update.Data, tracks[i])
+			}
+			for i := len(tracks) - 1; i >= 0; i-- {
+				dq.Push(tracks[i])
 			}
 		} else {
-
-			if rt_resp.Recenttracks.Track[0].Mbid == dq.Front().Mbid && rt_resp.Recenttracks.Track[0].Attr.Nowplaying != dq.Front().Attr.Nowplaying {
-				log.Println("2")
-				dq.mu.Lock()
-				dq.data[0].Attr.Nowplaying = rt_resp.Recenttracks.Track[0].Attr.Nowplaying
-				dq.mu.Unlock()
+			if dq.Front().Uid != tracks[0].Uid && !tracks[0].Streaming && !playing_status_update_sent || dq.Front().Uid == tracks[0].Uid && !tracks[0].Streaming && dq.Front().Streaming {
 				update.Status = 0
-			} else if rt_resp.Recenttracks.Track[0].Mbid != dq.Front().Mbid {
-				log.Println("3")
-				dq.Push(rt_resp.Recenttracks.Track[0])
+				playing_status_update_sent = true
+			} else if dq.Front().Uid != tracks[0].Uid {
+				if tracks[0].StartTimestamp == 0 {
+					tracks[0].StartTimestamp = int(time.Now().Unix())
+				}
+				if dq.Front().StartTimestamp >= tracks[0].StartTimestamp {
+					continue
+				}
+				dq.mu.Lock()
+				if dq.data[0].Streaming {
+					dq.data[0].Streaming = false
+				}
+				dq.mu.Unlock()
+				dq.Push(tracks[0])
+
 				update.Status = 1
-				update.Data = []StatusTrack{track_to_status_track(rt_resp.Recenttracks.Track[0])}
+				update.Data = append(update.Data, tracks[0])
+				playing_status_update_sent = false
 			}
 		}
-		js, err := json.Marshal(update)
 
+		js, err := json.Marshal(update)
 		if err != nil {
 			log.Printf("Cannot encode message to json. Error: %s\n", err)
 			continue

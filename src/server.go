@@ -15,15 +15,14 @@ const CLIENT_BUFFER_SIZE = 4
 var Log *log.Logger
 
 type StatusTrack struct {
-	Artist    string `json:"artist"`
-	Song      string `json:"title"`
-	Streaming bool   `json:"streaming"`
-	Date      int    `json:"date"`
+	Uid            string
+	StartTimestamp int    `json:"date"`
+	Artist         string `json:"artist"`
+	Song           string `json:"title"`
+	Streaming      bool   `json:"streaming"`
 }
 
 type StatusUpdate struct {
-	// 0 - status update
-	// 1 - new song
 	Status int           `json:"msg_type"`
 	Data   []StatusTrack `json:"data"`
 }
@@ -42,12 +41,12 @@ type Server struct {
 func track_to_status_track(t Track) StatusTrack {
 	date, _ := strconv.Atoi(t.Date.Uts)
 	return StatusTrack{
-		Artist:    t.Artist.Text,
-		Song:      t.Name,
-		Streaming: len(t.Attr.Nowplaying) > 0 && t.Attr.Nowplaying[0] == 't',
-		Date:      date,
+		Uid:            t.Mbid,
+		Artist:         t.Artist.Text,
+		Song:           t.Name,
+		Streaming:      len(t.Attr.Nowplaying) > 0 && t.Attr.Nowplaying[0] == 't',
+		StartTimestamp: date,
 	}
-
 }
 
 func init_server(max_clients int) *Server {
