@@ -1,6 +1,7 @@
 package main
 
 import (
+	"crypto/sha256"
 	"log"
 	"net/http"
 	"os"
@@ -22,6 +23,15 @@ type StatusTrack struct {
 	Streaming      bool   `json:"streaming"`
 }
 
+func (st *StatusTrack) Hash() string {
+	h := sha256.New()
+	h.Write([]byte(SHA_RANDOM_STRING))
+	h.Write([]byte(st.Uid))
+	h.Write([]byte(st.Artist))
+	h.Write([]byte(st.Song))
+	return string(h.Sum(nil))
+}
+
 type StatusUpdate struct {
 	Status int           `json:"msg_type"`
 	Data   []StatusTrack `json:"data"`
@@ -36,27 +46,6 @@ type Server struct {
 	register   chan *Client
 	unregister chan *Client
 	mu         sync.RWMutex
-}
-
-func track_to_status_track(t Track) StatusTrack {
-	date, _ := strconv.Atoi(t.Date.Uts)
-	return StatusTrack{
-		Uid:            t.Mbid,
-		Artist:         t.Artist.Text,
-		Song:           t.Name,
-		Streaming:      len(t.Attr.Nowplaying) > 0 && t.Attr.Nowplaying[0] == 't',
-		StartTimestamp: date,
-	}
-}
-
-func init_server(max_clients int) *Server {
-	return &Server{
-		max_clients: max_clients,
-		clients:     make(map[*Client]bool),
-		broadcast:   make(chan string),
-		register:    make(chan *Client),
-		unregister:  make(chan *Client),
-	}
 }
 
 func (srv *Server) run(threads int) {
@@ -91,6 +80,16 @@ func (srv *Server) does_accept_clients() bool {
 	defer srv.mu.RUnlock()
 	srv.mu.RLock()
 	return len(srv.clients) < srv.max_clients
+}
+
+func init_server(max_clients int) *Server {
+	return &Server{
+		max_clients: max_clients,
+		clients:     make(map[*Client]bool),
+		broadcast:   make(chan string),
+		register:    make(chan *Client),
+		unregister:  make(chan *Client),
+	}
 }
 
 var upgrader = websocket.Upgrader{
@@ -141,9 +140,9 @@ func init_http(srv *Server, cfg *Configuration, ip string, port int) {
 	}
 	Log = log.New(f, "[WS Server] ", log.LstdFlags|log.Lmsgprefix)
 
-	http.HandleFunc("/", func(w http.ResponseWriter, r *http.Request) {
-		http.ServeFile(w, r, "/home/piotr/Documents/golang/songws/src/home.html")
-	})
+	// http.HandleFunc("/", func(w http.ResponseWriter, r *http.Request) {
+	// 	http.ServeFile(w, r, "/home/piotr/Documents/golang/songws/src/home.html")
+	// })
 	http.HandleFunc("/ws", func(rw http.ResponseWriter, r *http.Request) {
 		ws_handler(srv, rw, r)
 	})

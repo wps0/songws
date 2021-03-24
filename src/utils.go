@@ -2,6 +2,7 @@ package main
 
 import (
 	"encoding/json"
+	"strconv"
 	"sync"
 )
 
@@ -17,16 +18,16 @@ func (s *DQueue) Push(val StatusTrack) {
 	s.data[0] = val
 }
 
-func (s *DQueue) Back() StatusTrack {
+func (s *DQueue) Back() *StatusTrack {
 	s.mu.RLock()
 	defer s.mu.RUnlock()
-	return s.data[len(s.data)-1]
+	return &s.data[len(s.data)-1]
 }
 
-func (s *DQueue) Front() StatusTrack {
+func (s *DQueue) Front() *StatusTrack {
 	s.mu.RLock()
 	defer s.mu.RUnlock()
-	return s.data[0]
+	return &s.data[0]
 }
 
 func (s *DQueue) Size() int {
@@ -58,4 +59,15 @@ func (s *DQueue) To_Json() string {
 	s.mu.RUnlock()
 	js, _ := json.Marshal(update)
 	return string(js)
+}
+
+func track_to_status_track(t Track) StatusTrack {
+	date, _ := strconv.Atoi(t.Date.Uts)
+	return StatusTrack{
+		Uid:            t.Mbid,
+		Artist:         t.Artist.Text,
+		Song:           t.Name,
+		Streaming:      len(t.Attr.Nowplaying) > 0 && t.Attr.Nowplaying[0] == 't',
+		StartTimestamp: date,
+	}
 }

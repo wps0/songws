@@ -18,6 +18,8 @@ type Configuration struct {
 	MainLogFile        string
 }
 
+const SHA_RANDOM_STRING = "DUrWafjcUbyNhLAS343TRbtK"
+
 var ip = flag.String("h", "0.0.0.0", "The address on which the server should listen. Possible values are: IPv4, IPv6, hostname")
 var port = flag.Int("p", 8080, "The port of the server")
 var cc = flag.Int("c", 1024, "Maximum number of clients connected concurrently to the server.")

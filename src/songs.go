@@ -58,10 +58,10 @@ var dq DQueue = DQueue{
 func fetcher(srv *Server, cfg *Configuration) {
 	client := &http.Client{}
 	playing_status_update_sent := false
+	log.Printf("[Songs fetcher] Starting up...\n")
+
 	for {
 		time.Sleep(time.Duration(cfg.RequestInterval) * time.Second)
-
-		log.Printf("[Songs fetcher] Making last.fm api request...\n")
 
 		req, err := http.NewRequest("GET", ROOT_API_URL+"?method=user.getrecenttracks&user="+cfg.Username+"&api_key="+cfg.LastfmApiKey+"&format=json&limit=3", nil)
 		if err != nil {
@@ -105,9 +105,9 @@ func fetcher(srv *Server, cfg *Configuration) {
 			return tracks[i].StartTimestamp > tracks[j].StartTimestamp
 		})
 
-		for i, t := range tracks {
-			log.Printf("%d: (%d; %v) %s %s (%s)\n", i, t.StartTimestamp, t.Streaming, t.Artist, t.Song, t.Uid)
-		}
+		// for i, t := range tracks {
+		// 	log.Printf("%d: (%d; %v) %s %s (%s)\n", i, t.StartTimestamp, t.Streaming, t.Artist, t.Song, t.Uid)
+		// }
 
 		update := StatusUpdate{
 			Status: -1,
@@ -130,8 +130,9 @@ func fetcher(srv *Server, cfg *Configuration) {
 		} else {
 			if dq.Front().Uid != tracks[0].Uid && !tracks[0].Streaming && !playing_status_update_sent || dq.Front().Uid == tracks[0].Uid && !tracks[0].Streaming && dq.Front().Streaming {
 				update.Status = 0
+				dq.Front().Streaming = false
 				playing_status_update_sent = true
-			} else if dq.Front().Uid != tracks[0].Uid {
+			} else if dq.Front().Hash() != tracks[0].Hash() {
 				if tracks[0].StartTimestamp == 0 {
 					tracks[0].StartTimestamp = int(time.Now().Unix())
 				}
@@ -148,6 +149,12 @@ func fetcher(srv *Server, cfg *Configuration) {
 				update.Status = 1
 				update.Data = append(update.Data, tracks[0])
 				playing_status_update_sent = false
+			} else {
+				if !dq.Front().Streaming && tracks[0].Streaming {
+					update.Status = 0
+					playing_status_update_sent = false
+					dq.Front().Streaming = true
+				}
 			}
 		}
 

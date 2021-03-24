@@ -83,7 +83,7 @@
  * v: 1.0.1-0614
  */
 
-var ws = new WebSocket('ws://localhost:8080/ws');
+var ws = new WebSocket('wss://localhost:8080/ws');
 var template = "<span class='time'><img class='currp' src='images/playing.png' /> %%_TIME_BEGIN_%% </span><span class='title'><a href='%%_SONG_URL_%%' target='_blank'>%%_SONG_TITLE_%%</a></span><span class='author'> by <a href='%%_AUTHOR_URL_%%' target='_blank'>%%_AUTHOR_NAME_%%</a></span>";
 var monthNames = [
     "stycznia", "lutego", "marca",
@@ -133,6 +133,7 @@ ws.onclose = function(event) {
 
 ws.onerror = function(event){
     console.log("Error");
+    console.log(event)
 }
 
 ws.onmessage = function(event) {
@@ -153,14 +154,14 @@ ws.onmessage = function(event) {
   // todo: zmiana obecnie granej
   if (data.msg_type == 0) {
     console.log("ZMIANA!")
+    position[0].classList.remove("currp")
     return
   }
 
-
-  data.data.forEach(x => {
-    console.log(x)
-    change_song(x)
-  });
+  for (let i = data.data.length - 1; i >= 0; i--) {
+    const val = data.data[i];
+    change_song(val)
+  }
 	
 };
 </script>
