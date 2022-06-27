@@ -28,6 +28,8 @@ var pem = flag.String("key", "", "Path to a private key file.")
 var en_https = flag.Bool("https", false, "Indicates whether TLS should be enabled.\nFor this option to take effect, the path to a private key file and a certificate file have to be provided.\nThe HTTP server is automatically disabled when the HTTPS one is available.")
 var en_cws = flag.Bool("console-ws-client", false, "Enables console writer to websocket clients for testing purposes.")
 var cfg_f = flag.String("cfg", "./config.toml", "Path to a configuration file. For now, the only thing the file stores are last.fm api credentials.")
+var keepalive = flag.Int("keep-alive", 10, "Websocket keepalive interval [s].")
+var write_deadline = flag.Int("write-deadline", 10, "Websocket write deadline.")
 
 func load_config(cfg *Configuration) {
 	_, err := os.Stat(*cfg_f)
