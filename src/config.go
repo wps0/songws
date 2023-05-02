@@ -33,16 +33,19 @@ var write_deadline = flag.Int("write-deadline", 10, "Websocket write deadline.")
 
 func load_config(cfg *Configuration) {
 	_, err := os.Stat(*cfg_f)
+
 	if os.IsNotExist(err) {
 		os.Create(*cfg_f)
 		f, err := os.OpenFile(*cfg_f, os.O_RDWR, 0600)
 		if err != nil {
 			log.Fatalf("Cannot open config file. Error: %s", err)
 		}
+		
 		buf := new(bytes.Buffer)
 		toml.NewEncoder(buf).Encode(&cfg)
 		f.Write(buf.Bytes())
 	}
+
 	if _, err := toml.DecodeFile(*cfg_f, cfg); err != nil {
 		log.Fatalf("An error occurred when reading the config file. Error: %s", err)
 	}

@@ -2,7 +2,7 @@
  * 1.1.0-210325
  */
 
-var ws = new WebSocket('wss://srv1.wieczorekp.pl:2137/ws');
+var ws = new WebSocket('wss://localhost:8080/ws');
 var template = "<span class='time'><img class='currp' src='images/playing.png' /> %%_TIME_BEGIN_%% </span><span class='title'><a href='%%_SONG_URL_%%' target='_blank'>%%_SONG_TITLE_%%</a></span><span class='author'> by <a href='%%_AUTHOR_URL_%%' target='_blank'>%%_AUTHOR_NAME_%%</a></span>";
 var monthNames = [
     "stycznia", "lutego", "marca",
@@ -84,5 +84,4 @@ ws.onmessage = function(event) {
     const val = data.data[i];
     change_song(val)
   }
-	
 };

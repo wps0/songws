@@ -68,11 +68,13 @@ func fetcher(srv *Server, cfg *Configuration) {
 			log.Printf("[Songs fetcher] An error occurred during creating new request. Error: %d\n", err)
 			continue
 		}
+
 		resp, err := client.Do(req)
 		if err != nil {
 			log.Printf("[Songs fetcher] Request to the API cannot be made. Error: %s\n", err)
 			continue
 		}
+
 		body, err := ioutil.ReadAll(resp.Body)
 		if err != nil {
 			log.Printf("[Songs fetcher] An error occurred when parsing response. Error: %s\n", err)
@@ -113,6 +115,7 @@ func fetcher(srv *Server, cfg *Configuration) {
 			Status: -1,
 			Data:   make([]StatusTrack, 0, 3),
 		}
+		
 		if dq.Empty() {
 			update.Status = 1
 			for i := 0; i < len(tracks); i++ {

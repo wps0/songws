@@ -105,6 +105,7 @@ func ws_handler(srv *Server, rw http.ResponseWriter, r *http.Request) {
 		rw.WriteHeader(503)
 		return
 	}
+
 	conn, err := upgrader.Upgrade(rw, r, nil)
 	if err != nil {
 		addr := "unknown"
@@ -122,9 +123,9 @@ func ws_handler(srv *Server, rw http.ResponseWriter, r *http.Request) {
 }
 
 func init_http(srv *Server, cfg *Configuration, ip string, port int) {
-
 	var f *os.File
 	var err error
+	
 	if len(cfg.WSAccessLogFile) == 0 {
 		log.Print("Websocket access log file not found! Access logs will be discarded")
 	} else if _, err = os.Stat(cfg.WSAccessLogFile); os.IsNotExist(err) {
@@ -140,9 +141,9 @@ func init_http(srv *Server, cfg *Configuration, ip string, port int) {
 	}
 	Log = log.New(f, "[WS Server] ", log.LstdFlags|log.Lmsgprefix)
 
-	// http.HandleFunc("/", func(w http.ResponseWriter, r *http.Request) {
-	// 	http.ServeFile(w, r, "/home/piotr/Documents/golang/songws/src/home.html")
-	// })
+	http.HandleFunc("/", func(w http.ResponseWriter, r *http.Request) {
+		http.ServeFile(w, r, "../home.html")
+	})
 	http.HandleFunc("/ws", func(rw http.ResponseWriter, r *http.Request) {
 		ws_handler(srv, rw, r)
 	})
